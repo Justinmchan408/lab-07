@@ -63,3 +63,16 @@ anova(target_spotify_log_model, full_spotify_log_model, test = "Chisq")
 ```
 Since the p-value for the chi-square test against the full and reduced model is 0.001258, we reject the null hypothesis that adding the key into the logistic model is statistically significant. In other words, the p-value seems too little when comparing the accuracy of the reduced and full models meaning there is a difference between them, insinuating that key adds to the accuracy of the full model. We can say that there is at least one new term in the table that is statistically significant.
 
+4. Display the model you chose in Exercise 3. If appropriate, interpret the coefficient for keyD# in the context of the data. Otherwise, state why it’s not appropriate to interpret this coefficient.
+```{r coefficients, include=TRUE}
+tidy(full_spotify_log_model)
+```
+The coefficient of keyD# would be -1.07. It would not be appropriate to interpret this coefficient to compare the direct relationship between the predictor variable, keyD# and the base line for the model since this is logistic model. However, it is appropriate to interpret the coefficient, -1.07 for keyD# as the odds of target for the group, keyD# are exp{-1.07} times the odds of target of the baseline group.
+
+## Part II: Checking Assumptions
+
+5. Use the augment function to calculate the predicted probabilities and corresponding residuals.
+```{r augment, include=TRUE}
+tidy(full_spotify_log_model)
+```
+
