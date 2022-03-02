@@ -9,22 +9,57 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+# Getting Started
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+## Packages
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r packages, echo=TRUE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(broom)
+library(pROC)
+library(plotROC)
+library(knitr)
 ```
 
-## Including Plots
+# Exercises
 
-You can also embed plots, for example:
+## Part I: Data Prep & Modeling
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+1. Read through the Spotify documentation page to learn more about the variables in the dataset. The response variable for this analysis is target, where 1 indicates the user likes the song and 0 otherwise. Let’s prepare the response and some predictor variables before modeling.
+- If needed, change target so that it is factor variable type in R.
+- Change key so that it is a factor variable type in R, which takes values “D” if key==2, “D#” if key==3, and “Other” for all other values.
+- Plot the relationship between target and key. Briefly describe the relationship between the two variables.
+```{r dataset, include=TRUE}
+spotify_data <- read_csv("~/Desktop/School/STAT108/lab-07/spotify.csv")
+glimpse(spotify_data)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r modify dataset, include=TRUE}
+spotify_data <- spotify_data %>% 
+  mutate(key = if_else(key == 2, "D", if_else(key == 3, "D#", "Other")),
+         target = as.factor(target))
+
+glimpse(spotify_data)
+
+#ggplot(data=spotify_data, aes(x=target,y=key)) +
+#  geom_bar()
+```
+
+2. Fit a logistic regression model with target as the response variable and the following as predictors: acousticness, danceability, duration_ms, instrumentalness, loudness, speechiness, and valence. Display the model output.
+```{r first model, include=TRUE}
+target_spotify_log_model <- glm(target ~ acousticness + danceability + duration_ms + instrumentalness + loudness + speechiness + valence, 
+              data = spotify_data, family = binomial)
+tidy(target_spotify_log_model, conf.int = TRUE, exponentiate = FALSE) %>% 
+  kable(format = "markdown", digits = 3)
+```
+3. We consider adding key to the model. Conduct the appropriate test to determine if key should be included in the model. Display the output from the test and write your conclusion in the context of the data.
+```{r models, include=TRUE}
+full_spotify_log_model <- glm(target ~ acousticness + danceability + duration_ms + instrumentalness + loudness + speechiness + valence + key, 
+              data = spotify_data, family = binomial)
+
+tidy(target_spotify_log_model)
+tidy(full_spotify_log_model)
+anova(target_spotify_log_model, full_spotify_log_model, test = "Chisq")
+```
+Since the p-value for the chi-square test against the full and reduced model is 0.001258, we reject the null hypothesis that adding the key into the logistic model is statistically significant. In other words, the p-value seems too little when comparing the accuracy of the reduced and full models meaning there is a difference between them, insinuating that key adds to the accuracy of the full model. We can say that there is at least one new term in the table that is statistically significant.
+
