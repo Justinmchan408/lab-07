@@ -30,7 +30,7 @@ library(knitr)
 - Change key so that it is a factor variable type in R, which takes values “D” if key==2, “D#” if key==3, and “Other” for all other values.
 - Plot the relationship between target and key. Briefly describe the relationship between the two variables.
 ```{r dataset, include=TRUE}
-spotify_data <- read_csv("~/Desktop/School/STAT108/lab-07/spotify.csv")
+spotify_data <- read_csv("~/Desktop/School/STAT108/lab-07/raw_data/spotify.csv")
 glimpse(spotify_data)
 ```
 
@@ -41,8 +41,11 @@ spotify_data <- spotify_data %>%
 
 glimpse(spotify_data)
 
-#ggplot(data=spotify_data, aes(x=target,y=key)) +
-#  geom_bar()
+ggplot(data = spotify_data, aes(x = key, fill = target)) +
+  geom_bar(position = "fill") +
+  labs(y = "Proportion", 
+       title = "Target vs. Key") +
+  coord_flip()
 ```
 
 2. Fit a logistic regression model with target as the response variable and the following as predictors: acousticness, danceability, duration_ms, instrumentalness, loudness, speechiness, and valence. Display the model output.
@@ -73,6 +76,103 @@ The coefficient of keyD# would be -1.07. It would not be appropriate to interpre
 
 5. Use the augment function to calculate the predicted probabilities and corresponding residuals.
 ```{r augment, include=TRUE}
-tidy(full_spotify_log_model)
+spotify_aug <- augment(full_spotify_log_model, type.predict = "response", 
+                      type.residuals = "deviance")
+spotify_aug
 ```
 
+6. Create a binned plot of the residuals versus the predicted probabilities.
+
+```{r binned plot, include=TRUE}
+nbins <- sqrt(nrow(spotify_aug))
+
+spotify_aug %>%
+  arrange(.fitted) %>%
+  summarise(mean_resid = mean(.resid), #y axis
+            mean_pred = mean(.fitted)) #x axis
+
+arm::binnedplot(x = spotify_aug$.fitted, y = spotify_aug$.resid,
+                xlab = "Predicted Probabilities", 
+                main = "Binned Residual vs. Predicted Values", 
+                col.int = FALSE)
+
+```
+
+7. Choose a quantitative predictor in the final model. Make the appropriate table or plot to examine the residuals versus this predictor variable.
+
+```{r quant pred, include=TRUE}
+arm::binnedplot(x = spotify_aug$speechiness, 
+                y = spotify_aug$.resid, 
+                col.int = FALSE,
+                xlab = "Speechiness", 
+                main = "Binned Residual vs. Speechiness")
+
+```
+
+8. Choose a categorical predictor in the final model. Make the appropriate table or plot to examine the residuals versus this predictor variable.
+
+```{r categorical pred, include=TRUE}
+spotify_aug %>% 
+  group_by(key) %>% 
+  summarise(mean_resid = mean(.resid)) %>% 
+  kable(format="markdown")
+
+```
+
+9. Based on the residuals plots from Exercises 6 - 8, is the linearity assumption satisfied? Briefly explain why or why not.
+
+Based on the residual plots from Exercises 6-8, the linearity assumption is not satisfied due to the binned residuals versus predicted values having a V pattern. Although the other graphs and table seem to have no pattern or have residuals far from zero, the exercise 6 plot has a pattern so it ultimately does not pass the assumption. Every variable in the model should be tested to check if there are no patterns in the binned plots.
+
+### Part III: Model Assessment & Prediction
+
+10. Plot the ROC curve and calculate the area under the curve (AUC). Display at least 5 thresholds (n.cut = 5) on the ROC.
+
+```{r ROC Curve, include=TRUE}
+(roc_curve <- ggplot(spotify_aug, 
+                     aes(d = as.numeric(target) - 1, 
+                         m = .fitted)) +
+  geom_roc(n.cuts = 10, labelround = 3) + 
+  geom_abline(intercept = 0) + 
+  labs(x = "False Positive Rate (1 - Specificity)", 
+       y = "True Positive Rate (Sensitivity)") )
+
+calc_auc(roc_curve)$AUC
+```
+
+11. Based on the ROC curve and AUC in the previous exercise, do you think this model effectively differentiates between the songs the user likes versus those he doesn’t?
+
+Based on the ROC curve and AUC in the previous exercise, I would say this model effectively differentiates between the songs the user likes versus those he doesn't to an extent. The ideal model would have an AUC of 1 but, with the AUC value being 0.714 which is greater than 0.5, the model can effectively predict the songs the user likes versus those he doesn't. The ROC curve further support this conclusion since the curve is above the y = x line meaning it can be useful for logistic regression when looking at terms of false and true positive rates.
+
+12. You are part of the data science team at Spotify, and your model will be used to make song recommendations to users. The goal is to recommend songs the user has a high probability of liking.
+
+Choose a threshold value to distinguish between songs the user will like and those the user won’t like. What is your threshold value? Use the ROC curve to help justify your choice.
+
+The threshold value I would choose to distinguish between songs the user will like and those the user won't like would be around 0.55. I chose that number since the displayed values on the ROC Curve by n.cuts = 10 have 0.58 and 0.521 being the best values. I went with choosing the value between the two values since both points seem almost the same distance from the top left point of the graph just by glancing.
+
+13. Make the confusion matrix using the threshold chosen in the previous question.
+
+```{r confusion matrix, include=TRUE}
+threshold <- 0.55
+
+spotify_aug %>%
+  mutate(predict = if_else(.fitted > threshold, "1: Yes", "0: No")) %>%
+  group_by(target, predict) %>%
+  summarise(n = n()) %>%
+  kable(format="markdown")
+```
+
+
+14. Use the confusion matrix from the previous question to answer the following:
+- What is the proportion of true positives (sensitivity)?
+The proportion of true positive also known as sensitivity is the proportion of observations that y = 1 and have a predicted probability above the particular threshold or predicted as 1. This can be calculated by:
+
+$$ sensitvity = \frac{pred_{p = 1, y = 1}}{count_{y = 1}} = \frac{581}{581 + 439} = 0.570$$
+- What is the proportion of false positives (1 - specificity)?
+The proportion of false positives (1 - specificity) is the proportion of observations that y = 0 and have a predicted probability above the particular threshold or predicted as 1. This can be calculated by:
+$$ 1 - specificity = 1 - \frac{pred_{p = 0, y = 0}}{count_{y = 0}} = 1 -  \frac{784}{784 + 213} = 1 - 0.786 = 0.214$$
+- What is the misclassification rate?
+The misclassification rate is the number of observations that were wrongly predicted over the total number of observations. The misclassification rate can be calculated by:
+$$ miscalculation rate = \frac{pred_{p = 1, y = 0} + pred_{p = 0, y = 1}}{count_{observations}} = 1 -  \frac{213 + 439}{784 + 581 + 213 + 439} = 0.323$$
+```{r write raw and mod data, include=FALSE}
+write.csv(spotify_aug, file = "/Users/chanj4/Desktop/School/STAT108/lab-07/mod_data/aug_spotify.csv")
+```
